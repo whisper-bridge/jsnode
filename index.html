@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSNode v0.0.2 - Javascript Node Editor</title>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- React Flow -->
+  <link rel="stylesheet" href="https://unpkg.com/reactflow@11.9.0/dist/style.css">
+  <script src="https://unpkg.com/reactflow@11.9.0/dist/umd/index.min.js"></script>
+  
+  <!-- Babel for JSX (In-Browser Compilation) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Styles -->
+  <style>
+    /* JSNode Styles - Version 0.0.2 */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: #fff; }
+    .app-container { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+    
+    /* Navigation */
+    .primary-nav {
+      height: 48px; background: #F5F5F5; border-bottom: 1px solid #E0E0E0;
+      display: flex; align-items: center; padding: 0 16px; gap: 24px;
+    }
+    .secondary-nav {
+      height: 32px; background: #F5F5F5; border-top: 1px solid #E0E0E0;
+      display: flex; align-items: center; padding: 0 16px; gap: 8px;
+    }
+    .simulate-bar {
+      height: 40px; background: #E8F4FD; border-bottom: 1px solid #E0E0E0;
+      display: flex; align-items: center; padding: 0 16px; gap: 16px;
+    }
+    
+    /* Buttons */
+    .nav-btn {
+      padding: 6px 12px; background: transparent; border: 1px solid #E0E0E0;
+      border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s;
+    }
+    .nav-btn:hover { background: #fff; border-color: #2196F3; }
+    .simulate-btn {
+      background: #4CAF50; color: white; border: none; padding: 8px 16px;
+      border-radius: 4px; cursor: pointer; font-weight: bold;
+    }
+    
+    /* Canvas */
+    .canvas-container { flex: 1; position: relative; background: #fff; }
+    
+    /* Drawers */
+    .drawer {
+      position: absolute; top: 0; bottom: 0; width: 300px;
+      background: #1E1E1E; color: #fff; transition: transform 0.3s ease;
+      z-index: 1000; display: flex; flex-direction: column;
+    }
+    .drawer-right { right: 0; transform: translateX(100%); border-left: 1px solid #333; }
+    .drawer-left { left: 0; transform: translateX(-100%); border-right: 1px solid #333; }
+    .drawer.open { transform: translateX(0); }
+    
+    .drawer-header {
+      padding: 12px; border-bottom: 1px solid #333; display: flex;
+      justify-content: space-between; align-items: center; font-weight: bold;
+    }
+    .drawer-content { padding: 12px; font-family: monospace; font-size: 12px; flex: 1; overflow-y: auto; }
+    
+    .toggle-btn {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: #2196F3; border: none; color: white;
+      padding: 8px 12px; cursor: pointer; z-index: 1001;
+      border-radius: 4px;
+    }
+    .toggle-right { right: 0; border-radius: 4px 0 0 4px; }
+    .toggle-left { left: 0; border-radius: 0 4px 4px 0; }
+    
+    /* Node Styling */
+    .jsnode-node {
+      background: white; border: 2px solid #2196F3; border-radius: 8px;
+      padding: 0; min-width: 150px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: visible;
+    }
+    .node-header {
+      padding: 10px; background: #F5F5F5; borderBottom: 1px solid #E0E0E0;
+      fontWeight: bold; fontSize: 13px; color: #333; borderTopLeftRadius: 6px; borderTopRightRadius: 6px;
+    }
+    .node-body { padding: 10px; fontSize: 12px; color: #666; }
+    
+    /* Animations */
+    @keyframes pulse-green { 0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); } 50% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); } }
+    @keyframes pulse-blue { 0%, 100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4); } 50% { box-shadow: 0 0 0 10px rgba(33, 150, 243, 0); } }
+    .state-green { animation: pulse-green 1s infinite; border-color: #4CAF50 !important; }
+    .state-blue { animation: pulse-blue 1s infinite; border-color: #2196F3 !important; }
+    .state-red { border-color: #F44336 !important; background: #FFEBEE; }
+    
+    /* Utility */
+    .logo { fontWeight: bold; color: #2196F3; font-size: 16px; }
+    .version { font-size: 10px; color: #999; margin-left: 4px; }
+    .account-icon {
+      width: 32px; height: 32px; border-radius: 50%; background: #2196F3;
+      color: white; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; margin-left: auto;
+    }
+    .workspace-tab {
+      padding: 4px 16px; background: transparent; border: none;
+      cursor: pointer; border-radius: 4px 4px 0 0; font-size: 12px;
+    }
+    .workspace-tab.active { background: #2196F3; color: white; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <!-- Application Logic -->
+  <script type="text/babel">
+    const { useState, useCallback, useMemo } = React;
+    const ReactDOM = window.ReactDOM;
+    const ReactFlow = window.ReactFlow;
+    const Background = window.ReactFlow.Background;
+    const Controls = window.ReactFlow.Controls;
+    const MiniMap = window.ReactFlow.MiniMap;
+    const addEdge = window.ReactFlow.addEdge;
+    const useNodesState = window.ReactFlow.useNodesState;
+    const useEdgesState = window.ReactFlow.useEdgesState;
+    
+    // --- Core Constants ---
+    const THEME = {
+      colors: {
+        primary: '#2196F3',
+        grid: '#E0E0E0',
+        background: '#FFFFFF',
+        text: '#333333',
+        stateGreen: '#4CAF50',
+        stateRed: '#F44336',
+      },
+      grid: { baseSize: 20 }
+    };
+
+    // --- Custom Node Component ---
+    const CustomNode = ({ data, selected, id }) => {
+      // Simulate random state for visual demo
+      const [state, setState] = useState('default'); 
+      
+      const getStyle = () => {
+        if (state === 'running') return { className: 'state-green' };
+        if (state === 'output') return { className: 'state-blue' };
+        if (state === 'error') return { className: 'state-red' };
+        return {};
+      };
+
+      const styleClass = getStyle().className || '';
+
+      return (
+        <div className={`jsnode-node ${styleClass}`}>
+          <div className="node-header">
+            {data.label}
+            <span style={{float:'right', opacity:0.3, fontSize:'10px'}}>#{id}</span>
+          </div>
+          <div className="node-body">
+            {data.type || 'Standard'}
+          </div>
+        </div>
+      );
+    };
+
+    // --- Main App ---
+    function App() {
+      const [nodes, setNodes, onNodesChange] = useNodesState([
+        { id: '1', type: 'custom', position: { x: 100, y: 100 }, data: { label: 'Input Source', type: 'Input' } },
+        { id: '2', type: 'custom', position: { x: 400, y: 150 }, data: { label: 'Process Data', type: 'Standard' } },
+        { id: '3', type: 'custom', position: { x: 700, y: 100 }, data: { label: 'API Output', type: 'API' } },
+      ]);
+      
+      const [edges, setEdges, onEdgesChange] = useEdgesState([
+        { id: 'e1-2', source: '1', target: '2', animated: true, style: { stroke: THEME.colors.primary } },
+        { id: 'e2-3', source: '2', target: '3', animated: true, style: { stroke: THEME.colors.primary } },
+      ]);
+
+      const [consoleOpen, setConsoleOpen] = useState(false);
+      const [debugOpen, setDebugOpen] = useState(false);
+      const [activeTab, setActiveTab] = useState('Workspace 1');
+
+      const onConnect = useCallback((params) => {
+        setEdges((eds) => addEdge({ 
+          ...params, 
+          animated: true, 
+          style: { stroke: THEME.colors.primary, strokeWidth: 2 } 
+        }, eds));
+      }, [setEdges]);
+
+      const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
+
+      return (
+        <div className="app-container">
+          {/* Primary Nav */}
+          <nav className="primary-nav">
+            <div style={{display:'flex', alignItems:'center'}}>
+              <span className="logo">JSNode</span>
+              <span className="version">v0.0.2</span>
+            </div>
+            
+            <div style={{display:'flex', gap:'8px'}}>
+              <button className="nav-btn">Input</button>
+              <button className="nav-btn">Output</button>
+              <button className="nav-btn">Standard</button>
+              <button className="nav-btn">API</button>
+            </div>
+            
+            <div style={{display:'flex', gap:'8px', marginLeft:'auto'}}>
+              <button className="nav-btn">Save</button>
+              <button className="nav-btn">⚙️</button>
+              <div className="account-icon">👤</div>
+            </div>
+          </nav>
+
+          {/* Simulate Bar */}
+          <div className="simulate-bar">
+            <button className="simulate-btn">▶ Simulate</button>
+            <div style={{fontSize:'12px', color:'#666'}}>
+              Speed: <input type="range" min="10" max="1000" defaultValue="100" />
+            </div>
+            <button 
+              className="nav-btn" 
+              style={{borderColor: THEME.colors.stateRed, color: THEME.colors.stateRed}}
+              onClick={() => setDebugOpen(!debugOpen)}
+            >
+              🐛 Debug
+            </button>
+          </div>
+
+          {/* Canvas */}
+          <div className="canvas-container">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              nodeTypes={nodeTypes}
+              fitView
+              snapToGrid={true}
+              snapGrid={[THEME.grid.baseSize, THEME.grid.baseSize]}
+            >
+              <Background color={THEME.colors.grid} gap={THEME.grid.baseSize} />
+              <Controls />
+              <MiniMap nodeColor={THEME.colors.primary} maskColor="rgba(240, 240, 240, 0.6)" />
+            </ReactFlow>
+
+            {/* Debug Drawer (Left) */}
+            <div className={`drawer drawer-left ${debugOpen ? 'open' : ''}`}>
+              <div className="drawer-header">
+                <span>🐛 Debug & Linter</span>
+                <button onClick={() => setDebugOpen(false)} style={{background:'none', border:'none', color:'white', cursor:'pointer'}}>✕</button>
+              </div>
+              <div className="drawer-content">
+                <div style={{color:'#4CAF50'}}>✔ Static Linter: No issues found</div>
+                <div style={{color:'#2196F3'}}>✔ Runtime Tracer: Active</div>
+                <div style={{color:'#FFC107'}}>⚠ Suggestion: Consider using a Loop Node here</div>
+              </div>
+            </div>
+            <button className="toggle-btn toggle-left" onClick={() => setDebugOpen(!debugOpen)}>
+              {debugOpen ? '‹' : '›'}
+            </button>
+
+            {/* Console Drawer (Right) */}
+            <div className={`drawer drawer-right ${consoleOpen ? 'open' : ''}`}>
+              <div className="drawer-header">
+                <span>Console</span>
+                <button onClick={() => setConsoleOpen(false)} style={{background:'none', border:'none', color:'white', cursor:'pointer'}}>✕</button>
+              </div>
+              <div className="drawer-content">
+                <div style={{color:'#888'}}>> JSNode Engine Initialized</div>
+                <div style={{color:'#888'}}>> Waiting for simulation...</div>
+              </div>
+            </div>
+            <button className="toggle-btn toggle-right" onClick={() => setConsoleOpen(!consoleOpen)}>
+              {consoleOpen ? '›' : '‹'}
+            </button>
+          </div>
+
+          {/* Secondary Nav (Workspaces) */}
+          <nav className="secondary-nav">
+            <button 
+              className={`workspace-tab ${activeTab === 'Workspace 1' ? 'active' : ''}`}
+              onClick={() => setActiveTab('Workspace 1')}
+            >
+              Workspace 1
+            </button>
+            <button className="nav-btn" style={{padding:'2px 8px', fontSize:'10px'}}>+ Add</button>
+          </nav>
+        </div>
+      );
+    }
+
+    // Render
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
